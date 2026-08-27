@@ -7,8 +7,7 @@ flowchart LR
     A[Browser agent] -->|document.modelContext| B[WebMCP bridge]
     C[Developer] -->|Public URL| N[POST /api/scan]
     N --> O[Cloudflare Browser Run]
-    O -->|Captured tool contracts| D[Scanner UI]
-    C -->|JSON manifest / self-scan| D
+    O -->|Captured tool contracts| D[One-page report]
     B --> E[Shared UI state]
     D --> F[42-check AX audit engine]
     F --> G[AX Health Score]
@@ -20,7 +19,6 @@ flowchart LR
     E --> H
     E --> I
     E --> J
-    K[Deterministic fixtures] --> F
     L[Cloudflare Worker + static assets] --> M[Next.js export]
     M --> B
     M --> D
@@ -28,14 +26,13 @@ flowchart LR
 
 ## Data boundaries
 
-- Manifest parsing and scoring happen in the client.
-- Native self-scan uses `document.modelContext.getTools()` when available.
+- Contract scoring happens in the client after a real-site scan.
 - Real-site scans send only the public target URL to `POST /api/scan`.
 - The Worker renders the page, captures imperative registrations, reads native tools where supported, and converts declarative WebMCP forms into JSON Schema.
 - Tools are never invoked. Private and local network targets are rejected before navigation and at the subrequest boundary.
 - Successful real-site responses are cached for five minutes to conserve Browser Run allocation.
 - The fallback registry mirrors the same seven tools for browsers without WebMCP.
-- Demo scenarios are static TypeScript data and produce repeatable results.
+- Failure traces, repair proposals, and capability parity are derived from the current scan artifact.
 - There are no API keys, databases, remote inference calls, cookies, or third-party analytics dependencies.
 
 ## Deployment

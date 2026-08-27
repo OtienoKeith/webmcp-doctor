@@ -11,7 +11,12 @@ import {
   type Edge,
   type Node,
 } from "@xyflow/react";
-import type { Scenario } from "@/lib/scenarios";
+export type TraceStep = {
+  id: string;
+  label: string;
+  detail: string;
+  state: "passed" | "warning" | "failed";
+};
 
 const stateColor = {
   passed: "#22c55e",
@@ -19,7 +24,7 @@ const stateColor = {
   failed: "#f05252",
 };
 
-export function TraceFlow({ trace, selectedId, onStepSelect }: { trace: Scenario["trace"]; selectedId?: string; onStepSelect?: (id: string) => void }) {
+export function TraceFlow({ trace, selectedId, onStepSelect }: { trace: TraceStep[]; selectedId?: string; onStepSelect?: (id: string) => void }) {
   const nodes = useMemo<Node[]>(
     () =>
       trace.map((step, index) => ({

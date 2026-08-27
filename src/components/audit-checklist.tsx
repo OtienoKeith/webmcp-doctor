@@ -2,8 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, CircleAlert, ShieldX } from "lucide-react";
-import type { AuditResult, AuditStatus } from "@/lib/audit";
-import type { MetricKey } from "@/lib/scenarios";
+import type { AuditResult, AuditStatus, MetricKey } from "@/lib/audit";
 
 const categoryLabels: Record<MetricKey, string> = {
   discoverability: "Discoverability",

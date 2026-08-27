@@ -19,6 +19,7 @@ type PageScan = {
   title: string;
   finalUrl: string;
   tools: ScannedTool[];
+  humanCapabilities: Array<{ label: string; kind: "form" | "action" | "navigation" }>;
   signals: {
     nativeApi: boolean;
     capturedRegistrations: number;
@@ -183,10 +184,21 @@ async function scanPage(target: string, env: WorkerEnv): Promise<PageScan> {
 
       const all = [...native, ...captured, ...declarative];
       const deduped = Array.from(new Map(all.filter((tool) => tool?.name).map((tool) => [tool.name, tool])).values());
+      const visibleLabel = (element: Element) => (element.getAttribute("aria-label") ?? element.getAttribute("title") ?? element.textContent ?? "").replace(/\s+/g, " ").trim();
+      const humanCapabilities = [
+        ...Array.from(document.querySelectorAll<HTMLFormElement>("form")).map((form) => ({
+          label: (form.getAttribute("tooltitle") ?? form.getAttribute("aria-label") ?? visibleLabel(form.querySelector("button[type=submit],input[type=submit]") ?? form)) || `Form ${form.id || "workflow"}`,
+          kind: "form" as const,
+        })),
+        ...Array.from(document.querySelectorAll<HTMLButtonElement>("button")).map((button) => ({ label: visibleLabel(button), kind: "action" as const })),
+        ...Array.from(document.querySelectorAll<HTMLAnchorElement>("a[href]")).map((link) => ({ label: visibleLabel(link), kind: "navigation" as const })),
+      ].filter((capability) => capability.label.length >= 3 && capability.label.length <= 90);
+      const dedupedCapabilities = Array.from(new Map(humanCapabilities.map((capability) => [`${capability.kind}:${capability.label.toLowerCase()}`, capability])).values()).slice(0, 18);
       return {
         title: document.title || new URL(location.href).hostname,
         finalUrl: location.href,
         tools: deduped,
+        humanCapabilities: dedupedCapabilities,
         signals: {
           nativeApi: Boolean(scanGlobal.__webmcpDoctorHadNative),
           capturedRegistrations: captured.length,

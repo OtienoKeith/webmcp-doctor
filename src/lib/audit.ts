@@ -1,4 +1,11 @@
-import type { MetricKey, Scenario, ToolDefinition } from "@/lib/scenarios";
+export type MetricKey = "discoverability" | "clarity" | "reliability" | "safety";
+
+export type ToolDefinition = {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  annotations?: { readOnlyHint?: boolean; untrustedContentHint?: boolean };
+};
 
 export type AuditableTool = ToolDefinition & {
   title?: string;
@@ -21,7 +28,7 @@ export type AuditCheck = {
 };
 
 export type AuditResult = {
-  source: "manifest" | "native" | "remote" | "demo";
+  source: "manifest" | "native" | "remote";
   label: string;
   score: number;
   toolCount: number;
@@ -113,7 +120,7 @@ export const axRubric: RubricItem[] = [
   { id: "s8", category: "safety", label: "Prompt-injection boundary is documented", remediation: "Treat tool metadata and returned untrusted content as data, never instructions.", evaluate: (t) => result(t.some((x) => /(review|post|message|content|comment|search)/i.test(x.name)) ? (t.some((x) => x.annotations?.untrustedContentHint) ? "passed" : "failed") : "passed", "Checked content tools for an untrusted-content boundary.") },
 ];
 
-const weights: Record<MetricKey, number> = { discoverability: 25, clarity: 30, reliability: 25, safety: 20 };
+export const metricWeights: Record<MetricKey, number> = { discoverability: 25, clarity: 30, reliability: 25, safety: 20 };
 const categories: MetricKey[] = ["discoverability", "clarity", "reliability", "safety"];
 
 export function parseToolManifest(value: string): AuditableTool[] {
@@ -136,18 +143,8 @@ export function auditTools(tools: AuditableTool[], options?: { source?: AuditRes
     if (category === "safety" && ["s3", "s5", "s8"].some((id) => failedIds.has(id))) categoryScore = Math.min(categoryScore, 35);
     return [category, categoryScore];
   })) as Record<MetricKey, number>;
-  const score = Math.round(categories.reduce((sum, category) => sum + categoryScores[category] * (weights[category] / 100), 0));
+  const score = Math.round(categories.reduce((sum, category) => sum + categoryScores[category] * (metricWeights[category] / 100), 0));
   return { source: options?.source ?? "manifest", label: options?.label ?? "Imported WebMCP manifest", score, toolCount: tools.length, checks, categoryScores, auditedAt: new Date().toISOString() };
-}
-
-export function auditScenario(scenario: Scenario): AuditResult {
-  const checks = axRubric.map((item) => {
-    const metric = scenario.metrics.find((candidate) => candidate.key === item.category)!;
-    const index = axRubric.filter((candidate) => candidate.category === item.category).findIndex((candidate) => candidate.id === item.id);
-    const status: AuditStatus = index < metric.passed ? "passed" : index === metric.passed ? "warning" : "failed";
-    return { id: item.id, category: item.category, label: item.label, status, evidence: status === "passed" ? `Passed in the controlled ${scenario.shortLabel.toLowerCase()} replay.` : metric.summary, remediation: item.remediation };
-  });
-  return { source: "demo", label: scenario.company, score: scenario.score, toolCount: 1, checks, categoryScores: Object.fromEntries(scenario.metrics.map((metric) => [metric.key, metric.score])) as Record<MetricKey, number>, auditedAt: "Deterministic fixture" };
 }
 
 export function safeToolJson(tool: AuditableTool) {
