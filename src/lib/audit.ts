@@ -21,7 +21,7 @@ export type AuditCheck = {
 };
 
 export type AuditResult = {
-  source: "manifest" | "native" | "demo";
+  source: "manifest" | "native" | "remote" | "demo";
   label: string;
   score: number;
   toolCount: number;

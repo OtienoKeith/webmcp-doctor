@@ -4,7 +4,7 @@
 [![Live deployment](https://img.shields.io/badge/Cloudflare-live-F38020?logo=cloudflare&logoColor=white)](https://webmcp-doctor.otienomkeith.workers.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-WebMCP Doctor is a browser-local diagnostic application for auditing the agent-facing interface of WebMCP-enabled websites. It analyzes tool metadata and JSON Schema contracts, produces an explainable Agent Experience (AX) score, traces deterministic failure scenarios, proposes safer tool definitions, and compares human and agent capabilities.
+WebMCP Doctor is a real-site diagnostic application for auditing the agent-facing interface of WebMCP-enabled websites. It renders a submitted public URL in an isolated Cloudflare browser, captures the tools registered after JavaScript executes, analyzes their metadata and JSON Schema contracts, and produces an explainable Agent Experience (AX) score. Local manifest and current-page scans remain available as secondary inputs.
 
 - Live deployment: <https://webmcp-doctor.otienomkeith.workers.dev>
 - Architecture details: [docs/architecture.md](docs/architecture.md)
@@ -15,7 +15,8 @@ WebMCP Doctor is a browser-local diagnostic application for auditing the agent-f
 
 | Component | Implementation |
 | --- | --- |
-| Live Scanner | Reads `document.modelContext.getTools()` or parses an imported JSON manifest entirely in the browser |
+| Real-site Scanner | Loads a public URL through Cloudflare Browser Run, captures imperative registrations, reads native `getTools()` when available, and synthesizes declarative form schemas |
+| Local Scanner | Reads the current page’s `document.modelContext.getTools()` or parses an imported JSON manifest entirely in the browser |
 | AX audit engine | Executes a deterministic 42-check rubric and returns evidence, remediation, category scores, and a weighted total |
 | Failure X-Ray | Uses React Flow to display goal, discovery, selection, input, execution, and root-cause stages |
 | Trace inspector | Exposes per-stage state, timing, reasoning, payload, error, and recovery information |
@@ -26,12 +27,13 @@ WebMCP Doctor is a browser-local diagnostic application for auditing the agent-f
 ## Runtime architecture
 
 ```text
-Imported manifest ─┐
-                   ├─> parseToolManifest() ─> auditTools() ─> AuditResult ─> UI
-Native getTools() ─┘                            │
-                                               ├─ 42 AuditCheck records
-                                               ├─ 4 category scores
-                                               └─ weighted AX score
+Public URL ─> POST /api/scan ─> Cloudflare Browser Run ─> registered tools ─┐
+Imported manifest ──────────────────────────────────────────────────────────┤
+Native getTools() ──────────────────────────────────────────────────────────┴─> auditTools()
+                                                                                │
+                                                                                ├─ 42 AuditCheck records
+                                                                                ├─ 4 category scores
+                                                                                └─ weighted AX score
 
 Browser agent ─> document.modelContext.registerTool() ─> shared React state
                                                         ├─ scanner
@@ -41,7 +43,7 @@ Browser agent ─> document.modelContext.registerTool() ─> shared React state
                                                         └─ digital twin
 ```
 
-The application is exported as static HTML, CSS, and JavaScript. There is no server-side API, database, authentication layer, remote model call, or analytics dependency.
+The Next.js interface is exported as static HTML, CSS, and JavaScript. A single Cloudflare Worker route, `POST /api/scan`, performs read-only browser rendering for public URLs; static assets bypass Worker execution. There is no database, authentication layer, remote model call, or third-party analytics dependency.
 
 ## Source layout
 
@@ -63,7 +65,12 @@ src/
 
 tests/
 ├── audit.test.ts               # Vitest scoring and security tests
-└── e2e/doctor.spec.ts          # Playwright application and WebMCP tests
+├── url-safety.test.ts          # Public URL and SSRF boundary tests
+└── e2e/doctor.spec.ts          # Playwright app, URL scan, and WebMCP tests
+
+worker/
+├── index.ts                    # Browser Run scan endpoint and tool extraction
+└── url-safety.ts               # Public-target validation
 ```
 
 ## AX scoring model
@@ -160,6 +167,8 @@ Four controlled fixtures live in `src/lib/scenarios.ts`:
 
 All trace stages, findings, repairs, and before/after results are static data. This prevents network or model nondeterminism during demonstrations and automated tests.
 
+The controlled fixtures power the execution replay, repair comparison, and Digital Twin. The primary scanner does not substitute fixtures for a submitted URL: it audits the tool contracts discovered from that deployed page.
+
 ## Local development
 
 Requirements:
@@ -186,9 +195,9 @@ Open <http://localhost:3000>.
 | `npm run test:watch` | Run Vitest in watch mode |
 | `npm run build` | Generate the static Next.js export in `out/` |
 | `npm run test:e2e` | Build, serve, and test the export with Playwright Chromium |
-| `npm run check` | Run lint, TypeScript, unit tests, and production build |
+| `npm run check` | Run lint, TypeScript, generated Worker type verification, unit tests, and production build |
 | `npm run serve:static` | Serve `out/` locally on port 3100 |
-| `npm run preview:cloudflare` | Build and preview through Wrangler |
+| `npm run preview:cloudflare` | Build and preview through Wrangler with the remote Browser Run binding |
 | `npm run deploy` | Build and deploy Cloudflare static assets |
 
 ## Automated verification
@@ -200,6 +209,7 @@ Vitest verifies:
 - unsafe checkout consent and idempotency failures;
 - improved scoring for repaired contracts;
 - required `untrustedContentHint` behavior for content-returning tools.
+- rejection of local, private, link-local, credential-bearing, and non-HTTP scan targets.
 
 Playwright verifies:
 
@@ -207,12 +217,13 @@ Playwright verifies:
 - imported manifest auditing and all 42 evidence rows;
 - registration of all seven native WebMCP tools;
 - agent-triggered UI navigation and structured tool results.
+- the public-URL scan contract and live-site result presentation.
 
 GitHub Actions runs `npm ci`, the full `check` command, Chromium installation, end-to-end tests, and a Wrangler deployment dry run on every push and pull request.
 
 ## Cloudflare deployment
 
-`next.config.ts` enables `output: "export"`. `wrangler.jsonc` publishes `./out` through Cloudflare Workers Static Assets:
+`next.config.ts` enables `output: "export"`. `wrangler.jsonc` publishes `./out` through Cloudflare Workers Static Assets and routes only `/api/*` through `worker/index.ts`. The `BROWSER` binding uses Cloudflare Browser Run:
 
 ```bash
 npm run deploy
@@ -227,6 +238,10 @@ For the manual GitHub deployment workflow, configure these repository secrets:
 
 - Imported manifests are never uploaded.
 - Audit execution is synchronous and local to the browser.
+- A submitted public URL is sent to the same-origin Worker and loaded in an isolated headless browser.
+- The Worker blocks local, private, link-local, internal, credential-bearing, and non-HTTP targets, including matching subresource requests.
+- Images, media, and fonts are skipped to reduce scan time and resource use.
+- Discovered tools are inspected but never executed.
 - No credentials are requested or persisted.
 - No user content is sent to an external model.
 - Tool execution in the included fixtures mutates only local React state.
@@ -234,8 +249,9 @@ For the manual GitHub deployment workflow, configure these repository secrets:
 
 ## Known constraints
 
-- Cross-origin sites cannot be scanned directly from a static page because of browser origin and CORS boundaries; export or paste their tool manifest instead.
-- Native registry inspection requires a browser implementation of `document.modelContext.getTools()`.
+- Public sites that require authentication, CAPTCHA, client certificates, or private network access cannot be scanned remotely; open their exported tool manifest locally instead.
+- A scan inspects tools registered during the initial page load. Tools exposed only after an authenticated action or later SPA state transition require a manifest scan or an in-page self-scan.
+- Cloudflare’s free Browser Run allocation is finite, so repeated public scans can receive a temporary quota error; successful scans are cached for five minutes.
 - Metadata analysis cannot prove the behavior of an opaque `execute` implementation; runtime conformance testing is represented by deterministic fixtures.
 - The current release does not persist audit history or provide CI annotations for external projects.
 

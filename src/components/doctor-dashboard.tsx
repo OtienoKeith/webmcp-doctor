@@ -7,7 +7,7 @@ import {
   CircleAlert, CircleDot, ClipboardCheck, Code2, GitCompareArrows,
   Info, LayoutDashboard, Play, Radar, RefreshCw, ScanSearch, ShieldAlert,
   Sparkles, Stethoscope, TerminalSquare, TestTube2, UserRound, Wrench,
-  X, Zap, ScanLine, Copy, Download,
+  X, Zap, ScanLine, Copy, Download, Globe2,
 } from "lucide-react";
 import { AuditChecklist } from "@/components/audit-checklist";
 import { ScannerView } from "@/components/scanner-view";
@@ -92,7 +92,7 @@ function CodeBlock({ definition, after = false }: { definition: Scenario["toolBe
 }
 
 export function DoctorDashboard() {
-  const [activeView, setActiveView] = useState<View>("overview");
+  const [activeView, setActiveView] = useState<View>("scanner");
   const [scenarioId, setScenarioId] = useState("deploy");
   const [repaired, setRepaired] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -189,13 +189,13 @@ export function DoctorDashboard() {
       <nav>{views.map((view) => { const Icon = view.icon; return <button key={view.id} className={activeView === view.id ? "active" : ""} onClick={() => setActiveView(view.id)}><Icon size={18} /><span>{view.label}</span>{view.id === "tools" && <em>7</em>}</button>; })}</nav>
       <div className="sidebar-spacer" />
       <div className={`webmcp-status webmcp-status-${nativeState}`}><div className="pulse-dot" /><div><strong>{nativeState === "native" ? "WebMCP live" : nativeState === "preview" ? "Demo bridge active" : "Checking WebMCP"}</strong><span>{nativeState === "native" ? "7 native tools registered" : "7 tools · progressive fallback"}</span></div></div>
-      <div className="sidebar-note"><ShieldAlert size={15} /><span>Local-only scenarios<br />No data leaves this browser</span></div>
+      <div className="sidebar-note"><ShieldAlert size={15} /><span>Real-site scans are read-only<br />Tools are never invoked</span></div>
     </aside>
 
     <main className="main-shell">
       <header className="topbar">
         <div className="mobile-brand"><Logo /><strong>WebMCP Doctor</strong></div>
-        <div className="environment-picker"><span>TEST ENVIRONMENT</span><label><CircleDot size={15} /><select value={scenarioId} onChange={(event) => { setScenarioId(event.target.value); setRepaired(false); }} aria-label="Select test environment">{scenarios.map((item) => <option key={item.id} value={item.id}>{item.company} · {item.shortLabel}</option>)}</select><ChevronDown size={15} /></label></div>
+        {activeView === "scanner" ? <div className="real-site-mode"><Globe2 size={16} /><div><span>SCAN MODE</span><strong>Live public website</strong></div></div> : <div className="environment-picker"><span>CONTROLLED SCENARIO</span><label><CircleDot size={15} /><select value={scenarioId} onChange={(event) => { setScenarioId(event.target.value); setRepaired(false); }} aria-label="Select test environment">{scenarios.map((item) => <option key={item.id} value={item.id}>{item.company} · {item.shortLabel}</option>)}</select><ChevronDown size={15} /></label></div>}
         <div className="top-actions"><button className="button button-ghost" onClick={() => setActiveView("tools")}><TerminalSquare size={16} /> Tool console</button><button className="button button-primary" onClick={startDemo}><Play size={15} fill="currentColor" /> Start 3-min demo</button></div>
       </header>
 

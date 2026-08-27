@@ -11,7 +11,7 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "serve:static": "serve out -l 3100",
-    "check": "npm run lint && tsc --noEmit && npm run test && npm run build",
+    "check": "npm run lint && tsc --noEmit && wrangler types --check worker-configuration.d.ts && npm run test && npm run build",
     "deploy": "npm run build && wrangler deploy",
     "preview:cloudflare": "npm run build && wrangler dev"
   },
@@ -24,6 +24,8 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@cloudflare/puppeteer": "^1.4.0",
+    "@cloudflare/workers-types": "^5.20260827.1",
     "@playwright/test": "^1.62.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/dom": "^10.4.1",
