@@ -1,11 +1,11 @@
 import { expect, test } from "@playwright/test";
 
-test("runs the guided judge flow into Failure X-Ray", async ({ page }) => {
+test("runs the guided diagnostic flow into Failure X-Ray", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Is this website ready for agents?" })).toBeVisible();
   await page.getByRole("button", { name: "Start 3-min demo" }).click();
   await expect(page.getByText("Start with the AX Health Score")).toBeVisible();
-  await page.getByRole("button", { name: /Next wow factor/ }).click();
+  await page.getByRole("button", { name: "Next step" }).click();
   await expect(page.getByRole("heading", { name: "See exactly where the agent broke" })).toBeVisible();
   await expect(page.locator(".trace-node")).toHaveCount(6);
 });
